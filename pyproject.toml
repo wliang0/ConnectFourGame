@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "connectfour"
+version = "0.1.0"
+description = "Connect Four multiplayer game"
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.13"
+
+
+[tool.poetry.group.dev.dependencies]
+pyinstaller = {markers = "python_version < \"3.15\"", version = "^6.19.0"}
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
