@@ -96,7 +96,7 @@ async def _handle_client(
     if msg is None or msg.get("type") != "name":
         writer.close()
         return
-    name = msg["name"].strip() or "Anonymous"
+    name = msg["name"].strip() or "Opponent"
 
     async with _lock:
         if _waiting is None:

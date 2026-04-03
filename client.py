@@ -97,7 +97,7 @@ async def main() -> None:
     elif game.winner == my_token:
         print("You win!")
     else:
-        print("Opponent wins!")
+        print(f"{opponent_name} wins!")
 
     writer.close()
     await writer.wait_closed()
