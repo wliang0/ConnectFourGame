@@ -6,8 +6,8 @@ import random
 HOST = "0.0.0.0"
 PORT = int(os.environ.get("PORT", 5000))
 
-# Holds the first connected client while waiting for a second.
-_waiting: tuple[asyncio.StreamReader, asyncio.StreamWriter] | None = None
+# Holds the first connected client (and their name) while waiting for a second.
+_waiting: tuple[asyncio.StreamReader, asyncio.StreamWriter, str] | None = None
 _lock = asyncio.Lock()
 
 
@@ -29,16 +29,18 @@ async def _recv(reader: asyncio.StreamReader) -> dict | None:
 async def _relay_game(
     reader1: asyncio.StreamReader,
     writer1: asyncio.StreamWriter,
+    name1: str,
     reader2: asyncio.StreamReader,
     writer2: asyncio.StreamWriter,
+    name2: str,
 ) -> None:
     tokens = ["X", "O"]
     random.shuffle(tokens)
     first = random.randint(1, 2)
 
-    await _send(writer1, {"type": "start", "token": tokens[0], "your_turn": first == 1})
-    await _send(writer2, {"type": "start", "token": tokens[1], "your_turn": first == 2})
-    print(f"Game started. Token {tokens[0]} goes {'first' if first == 1 else 'second'}.")
+    await _send(writer1, {"type": "start", "token": tokens[0], "your_turn": first == 1, "opponent_name": name2})
+    await _send(writer2, {"type": "start", "token": tokens[1], "your_turn": first == 2, "opponent_name": name1})
+    print(f"Game started: {name1} vs {name2}.")
 
     readers = {1: reader1, 2: reader2}
     writers = {1: writer1, 2: writer2}
@@ -90,9 +92,15 @@ async def _handle_client(
     addr = writer.get_extra_info("peername")
     print(f"Connection from {addr}")
 
+    msg = await _recv(reader)
+    if msg is None or msg.get("type") != "name":
+        writer.close()
+        return
+    name = msg["name"].strip() or "Anonymous"
+
     async with _lock:
         if _waiting is None:
-            _waiting = (reader, writer)
+            _waiting = (reader, writer, name)
             partner = None
         else:
             partner = _waiting
@@ -100,10 +108,10 @@ async def _handle_client(
 
     if partner is None:
         await _send(writer, {"type": "waiting"})
-        print("Waiting for a second player...")
+        print(f"{name} is waiting for an opponent...")
     else:
-        reader1, writer1 = partner
-        asyncio.create_task(_relay_game(reader1, writer1, reader, writer))
+        reader1, writer1, name1 = partner
+        asyncio.create_task(_relay_game(reader1, writer1, name1, reader, writer, name))
 
 
 async def main() -> None:

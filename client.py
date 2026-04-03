@@ -47,6 +47,10 @@ async def main() -> None:
         print(f"Could not connect: {e}")
         sys.exit(1)
 
+    loop = asyncio.get_running_loop()
+    my_name = await loop.run_in_executor(None, input, "Your name: ")
+    await _send(writer, {"type": "name", "name": my_name.strip() or "Anonymous"})
+
     # Wait for server handshake — may receive "waiting" before "start"
     while True:
         msg = await _recv(reader)
@@ -60,7 +64,9 @@ async def main() -> None:
 
     my_token: str = msg["token"]
     your_turn: bool = msg["your_turn"]
+    opponent_name: str = msg["opponent_name"]
     opponent_token = "O" if my_token == "X" else "X"
+    print(f"Opponent: {opponent_name}")
 
     game = ConnectFour()
 
@@ -74,7 +80,7 @@ async def main() -> None:
                 await _send(writer, {"type": "game_over"})
         else:
             game.print_board(None)
-            print("Waiting for opponent's move...")
+            print(f"Waiting for {opponent_name}'s move...")
             incoming = await _recv(reader)
             if incoming is None or incoming.get("type") == "opponent_disconnected":
                 game.print_board()
