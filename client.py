@@ -70,36 +70,55 @@ async def main() -> None:
     opponent_token = "O" if my_token == "X" else "X"
     print(f"Opponent: {opponent_name}")
 
-    game = ConnectFour()
+    round_num = 1
+    while True:
+        game = ConnectFour()
 
-    while not game.game_over:
-        if your_turn:
-            game.print_board(my_token)
-            col = await _get_column(game)
-            game.play(my_token, col)
-            await _send(writer, {"type": "move", "col": col})
-            if game.game_over:
-                await _send(writer, {"type": "game_over"})
+        while not game.game_over:
+            if your_turn:
+                game.print_board(my_token)
+                col = await _get_column(game)
+                game.play(my_token, col)
+                await _send(writer, {"type": "move", "col": col})
+                if game.game_over:
+                    await _send(writer, {"type": "game_over"})
+            else:
+                game.print_board(None)
+                print(f"Waiting for {opponent_name}'s move...")
+                incoming = await _recv(reader)
+                if incoming is None or incoming.get("type") == "opponent_disconnected":
+                    game.print_board()
+                    print("Opponent disconnected. You win by default!")
+                    writer.close()
+                    return
+                game.play(opponent_token, incoming["col"])
+
+            your_turn = not your_turn
+
+        game.print_board()
+        if game.tied:
+            print("It's a tie!")
+        elif game.winner == my_token:
+            print("You win!")
         else:
-            game.print_board(None)
-            print(f"Waiting for {opponent_name}'s move...")
-            incoming = await _recv(reader)
-            if incoming is None or incoming.get("type") == "opponent_disconnected":
-                game.print_board()
-                print("Opponent disconnected. You win by default!")
-                writer.close()
-                return
-            game.play(opponent_token, incoming["col"])
+            print(f"{opponent_name} wins!")
 
-        your_turn = not your_turn
+        raw = await loop.run_in_executor(None, input, "\nPlay again? (y/n): ")
+        accept = raw.strip().lower().startswith("y")
+        await _send(writer, {"type": "rematch", "accept": accept})
 
-    game.print_board()
-    if game.tied:
-        print("It's a tie!")
-    elif game.winner == my_token:
-        print("You win!")
-    else:
-        print(f"{opponent_name} wins!")
+        response = await _recv(reader)
+        if response is None or response.get("type") == "rematch_declined":
+            if not accept:
+                print("Thanks for playing!")
+            else:
+                print(f"{opponent_name} declined. Thanks for playing!")
+            break
+
+        # response is a new "start" message — update turn order and loop
+        your_turn = response["your_turn"]
+        round_num += 1
+        print(f"\nRound {round_num}!\n")
 
     writer.close()
     await writer.wait_closed()

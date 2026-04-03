@@ -26,6 +26,11 @@ async def _recv(reader: asyncio.StreamReader) -> dict | None:
         return None
 
 
+async def _get_rematch(reader: asyncio.StreamReader) -> bool:
+    msg = await _recv(reader)
+    return msg is not None and msg.get("type") == "rematch" and msg.get("accept") is True
+
+
 async def _relay_game(
     reader1: asyncio.StreamReader,
     writer1: asyncio.StreamWriter,
@@ -38,44 +43,74 @@ async def _relay_game(
     random.shuffle(tokens)
     first = random.randint(1, 2)
 
-    await _send(writer1, {"type": "start", "token": tokens[0], "your_turn": first == 1, "opponent_name": name2})
-    await _send(writer2, {"type": "start", "token": tokens[1], "your_turn": first == 2, "opponent_name": name1})
-    print(f"Game started: {name1} vs {name2}.")
-
     readers = {1: reader1, 2: reader2}
     writers = {1: writer1, 2: writer2}
-    current = first
+    names = {1: name1, 2: name2}
 
     while True:
-        other = 3 - current
-        try:
-            msg = await readers[current].readline()
-            if not msg:
-                raise ConnectionResetError
-            msg = json.loads(msg.decode().strip())
-        except Exception:
-            print(f"Player {current} disconnected.")
+        await _send(writer1, {"type": "start", "token": tokens[0], "your_turn": first == 1, "opponent_name": name2})
+        await _send(writer2, {"type": "start", "token": tokens[1], "your_turn": first == 2, "opponent_name": name1})
+        print(f"Round started: {name1} vs {name2}. {names[first]} goes first.")
+
+        # Relay moves until game over or disconnect
+        current = first
+        disconnected = False
+        while True:
+            other = 3 - current
             try:
-                await _send(writers[other], {"type": "opponent_disconnected"})
+                line = await readers[current].readline()
+                if not line:
+                    raise ConnectionResetError
+                msg = json.loads(line.decode().strip())
+            except Exception:
+                print(f"{names[current]} disconnected.")
+                try:
+                    await _send(writers[other], {"type": "opponent_disconnected"})
+                except Exception:
+                    pass
+                disconnected = True
+                break
+
+            try:
+                await _send(writers[other], msg)
+            except Exception:
+                print(f"{names[other]} disconnected.")
+                try:
+                    await _send(writers[current], {"type": "opponent_disconnected"})
+                except Exception:
+                    pass
+                disconnected = True
+                break
+
+            if msg.get("type") == "game_over":
+                print(f"Game over: {name1} vs {name2}.")
+                break
+
+            current = other
+
+        if disconnected:
+            break
+
+        # Wait for both players to respond to rematch prompt
+        results = await asyncio.gather(
+            _get_rematch(reader1),
+            _get_rematch(reader2),
+            return_exceptions=True,
+        )
+        both_accept = all(r is True for r in results)
+
+        if both_accept:
+            first = 3 - first  # flip who goes first
+        else:
+            try:
+                await _send(writer1, {"type": "rematch_declined"})
+            except Exception:
+                pass
+            try:
+                await _send(writer2, {"type": "rematch_declined"})
             except Exception:
                 pass
             break
-
-        try:
-            await _send(writers[other], msg)
-        except Exception:
-            print(f"Player {other} disconnected.")
-            try:
-                await _send(writers[current], {"type": "opponent_disconnected"})
-            except Exception:
-                pass
-            break
-
-        if msg.get("type") == "game_over":
-            print("Game over.")
-            break
-
-        current = other
 
     for w in (writer1, writer2):
         try:
