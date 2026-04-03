@@ -64,7 +64,7 @@ poetry run pyinstaller --onefile client.py
 
 The binary is output to `dist/client`. This is the file you send to other players — they don't need Python installed.
 
-> **Note:** The binary is platform-specific. An arm64 macOS build will only run on Apple Silicon Macs. Rebuild on the target platform if needed.
+> **Note:** The binary is platform-specific and will only run on Apple Silicon Macs. Rebuild on the target platform if needed.
 
 ## Playing
 
@@ -77,6 +77,16 @@ The binary is output to `dist/client`. This is the file you send to other player
    ```
 4. **Opponent runs their binary** — the game starts automatically.
 5. Tokens (X/O) and who goes first are assigned randomly by the server.
+
+### macOS security warning
+
+On first launch, macOS may block the binary with a message saying it could not verify it is free of malware. This is expected for unsigned binaries. To allow it:
+
+1. Open **System Settings → Privacy & Security**
+2. Scroll down to the blocked app and click **Open Anyway**
+3. Click **Open** on the confirmation dialog
+
+This only needs to be done once.
 
 ## Re-deploying after changes
 
