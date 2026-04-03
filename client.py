@@ -1,6 +1,7 @@
 import asyncio
 import json
 import sys
+import termios
 
 from game import ConnectFour
 
@@ -27,6 +28,7 @@ async def _recv(reader: asyncio.StreamReader) -> dict | None:
 
 async def _get_column(game: ConnectFour) -> int:
     loop = asyncio.get_running_loop()
+    termios.tcflush(sys.stdin, termios.TCIFLUSH)
     while True:
         try:
             raw = await loop.run_in_executor(None, input, f"Column (0-{game.COLS - 1}): ")
