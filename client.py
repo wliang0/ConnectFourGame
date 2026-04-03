@@ -79,9 +79,7 @@ async def main() -> None:
                 game.print_board(my_token)
                 col = await _get_column(game)
                 game.play(my_token, col)
-                await _send(writer, {"type": "move", "col": col})
-                if game.game_over:
-                    await _send(writer, {"type": "game_over"})
+                await _send(writer, {"type": "move", "col": col, "final": game.game_over})
             else:
                 game.print_board(None)
                 print(f"Waiting for {opponent_name}'s move...")

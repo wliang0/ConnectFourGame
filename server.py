@@ -71,10 +71,6 @@ async def _relay_game(
                 disconnected = True
                 break
 
-            if msg.get("type") == "game_over":
-                print(f"Game over: {name1} vs {name2}.")
-                break
-
             try:
                 await _send(writers[other], msg)
             except Exception:
@@ -84,6 +80,10 @@ async def _relay_game(
                 except Exception:
                     pass
                 disconnected = True
+                break
+
+            if msg.get("final"):
+                print(f"Game over: {name1} vs {name2}.")
                 break
 
             current = other
